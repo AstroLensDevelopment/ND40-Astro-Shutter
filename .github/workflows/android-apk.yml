@@ -33,8 +33,21 @@ jobs:
 
           if [ ! -x "$LATEST_DIR/bin/sdkmanager" ]; then
             TMP_DIR="$(mktemp -d)"
-            curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$TMP_DIR/cmdline-tools.zip"
-            unzip -q "$TMP_DIR/cmdline-tools.zip" -d "$TMP_DIR"
+            python3 - <<'PY'
+      import os
+import pathlib
+import urllib.request
+import zipfile
+
+      tmp = pathlib.Path(os.environ["TMP_DIR"])
+zip_path = tmp / "cmdline-tools.zip"
+urllib.request.urlretrieve(
+    "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip",
+    zip_path,
+)
+with zipfile.ZipFile(zip_path, "r") as archive:
+    archive.extractall(tmp)
+PY
             rm -rf "$LATEST_DIR"
             mkdir -p "$LATEST_DIR"
             cp -a "$TMP_DIR/cmdline-tools/." "$LATEST_DIR/"
