@@ -28,7 +28,8 @@ jobs:
 
       - name: Build with Buildozer
         run: |
-          buildozer android debug
+          set -o pipefail
+          yes | buildozer android debug
         env:
           BUILDOZER_WARN_ON_ROOT: 0
           APP_ANDROID_ACCEPT_SDK_LICENSE: 1

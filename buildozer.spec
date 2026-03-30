@@ -10,6 +10,7 @@ orientation = portrait
 fullscreen = 0
 android.api = 33
 android.minapi = 21
+android.accept_sdk_license = True
 android.archs = arm64-v8a,armeabi-v7a
 android.permissions = BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_CONNECT,BLUETOOTH_SCAN,ACCESS_FINE_LOCATION
 android.grant_permissions = 1
