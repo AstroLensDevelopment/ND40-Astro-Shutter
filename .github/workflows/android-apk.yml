@@ -1,74 +1,71 @@
-name: Build Android APK
+name: build-android
 
 on:
-  workflow_dispatch:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build for Android
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+
     container:
       image: kivy/buildozer:latest
-      options: --user root
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure git safe directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Install Android SDK build-tools
-        shell: bash
-        run: |
-          set -euxo pipefail
-          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
-          TOOLS_DIR="$SDK_DIR/cmdline-tools"
-          LATEST_DIR="$TOOLS_DIR/latest"
-
-          mkdir -p "$TOOLS_DIR"
-
-          if [ ! -x "$LATEST_DIR/bin/sdkmanager" ]; then
-            TMP_DIR="$(mktemp -d)"
-            python3 -c "import os,pathlib,urllib.request,zipfile; tmp=pathlib.Path(os.environ['TMP_DIR']); zip_path=tmp/'cmdline-tools.zip'; urllib.request.urlretrieve('https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip', zip_path); zipfile.ZipFile(zip_path, 'r').extractall(tmp)"
-            rm -rf "$LATEST_DIR"
-            mkdir -p "$LATEST_DIR"
-            cp -a "$TMP_DIR/cmdline-tools/." "$LATEST_DIR/"
-            rm -rf "$TMP_DIR"
-          fi
-
-          yes | "$LATEST_DIR/bin/sdkmanager" --sdk_root="$SDK_DIR" --licenses
-          "$LATEST_DIR/bin/sdkmanager" --sdk_root="$SDK_DIR" \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;33.0.2"
-
-      - name: Build debug APK
-        shell: bash
-        run: |
-          set -o pipefail
-          buildozer -v android debug 2>&1 | tee build.log
-
-      - name: Print failure diagnostics
-        if: failure()
-        run: |
-          echo "Build failed. Last 80 lines:"
-          tail -n 80 build.log || true
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v3
         with:
-          name: buildozer-log
-          path: build.log
-          if-no-files-found: warn
+          path: .buildozer_global
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+
+      - name: Build with Buildozer
+        run: |
+          buildozer android debug
+        env:
+          BUILDOZER_WARN_ON_ROOT: 0
+          APP_ANDROID_ACCEPT_SDK_LICENSE: 1
+
+      - name: Verify APK was created
+        run: |
+          echo "Searching for APK files..."
+          find . -name "*.apk" -type f
+          if ls bin/*.apk 1> /dev/null 2>&1; then
+            echo "✓ APK file found in bin/"
+            for apk in bin/*.apk; do
+              echo "APK: $apk ($(du -h "$apk" | cut -f1))"
+            done
+          else
+            echo "⚠ No APK in bin/, checking .buildozer..."
+            if find .buildozer -name "*.apk" -type f | grep -q .; then
+              echo "Found APK in .buildozer, copying to bin/"
+              mkdir -p bin
+              find .buildozer -name "*.apk" -type f -exec cp {} bin/ \;
+              ls -lh bin/
+            else
+              echo "❌ No APK files found anywhere"
+              exit 1
+            fi
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nd40-astro-shutter-debug-apk
+          name: nd40-astro-shutter-apk
           path: bin/*.apk
-          if-no-files-found: error
+
+      - name: Build log on failure
+        if: failure()
+        run: |
+          echo "Build failed. Checking for logs..."
+          find .buildozer -name "*.log" -type f | head -5 | while read log; do
+            echo "=== $log (last 100 lines) ==="
+            tail -100 "$log"
+          done
