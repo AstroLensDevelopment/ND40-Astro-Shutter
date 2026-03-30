@@ -21,6 +21,32 @@ jobs:
       - name: Configure git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Install Android SDK build-tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          TOOLS_DIR="$SDK_DIR/cmdline-tools"
+          LATEST_DIR="$TOOLS_DIR/latest"
+
+          mkdir -p "$TOOLS_DIR"
+
+          if [ ! -x "$LATEST_DIR/bin/sdkmanager" ]; then
+            TMP_DIR="$(mktemp -d)"
+            curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$TMP_DIR/cmdline-tools.zip"
+            unzip -q "$TMP_DIR/cmdline-tools.zip" -d "$TMP_DIR"
+            rm -rf "$LATEST_DIR"
+            mkdir -p "$LATEST_DIR"
+            cp -a "$TMP_DIR/cmdline-tools/." "$LATEST_DIR/"
+            rm -rf "$TMP_DIR"
+          fi
+
+          yes | "$LATEST_DIR/bin/sdkmanager" --sdk_root="$SDK_DIR" --licenses
+          "$LATEST_DIR/bin/sdkmanager" --sdk_root="$SDK_DIR" \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.2"
+
       - name: Build debug APK
         shell: bash
         run: |
