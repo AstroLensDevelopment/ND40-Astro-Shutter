@@ -27,6 +27,7 @@ jobs:
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
       - name: Build with Buildozer
+        shell: bash
         run: |
           set -o pipefail
           yes | buildozer android debug
@@ -66,7 +67,11 @@ jobs:
         if: failure()
         run: |
           echo "Build failed. Checking for logs..."
-          find .buildozer -name "*.log" -type f | head -5 | while read log; do
-            echo "=== $log (last 100 lines) ==="
-            tail -100 "$log"
-          done
+          if [ -d .buildozer ]; then
+            find .buildozer -name "*.log" -type f | head -5 | while read -r log; do
+              echo "=== $log (last 100 lines) ==="
+              tail -100 "$log"
+            done
+          else
+            echo ".buildozer directory not created (failure occurred before buildozer ran)."
+          fi
