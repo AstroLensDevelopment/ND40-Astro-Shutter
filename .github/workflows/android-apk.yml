@@ -26,8 +26,8 @@ jobs:
           sudo apt-get install -y \
             git zip unzip openjdk-17-jdk \
             autoconf libtool pkg-config zlib1g-dev \
-            libncurses6 libncurses6-dev libtinfo6 cmake \
-            libffi-dev libssl-dev
+            libncurses5-dev libffi-dev libssl-dev \
+            cmake libltdl-dev
 
       - name: Install Buildozer and Cython
         run: |
