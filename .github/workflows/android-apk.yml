@@ -24,15 +24,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip openjdk-17-jdk \
-            autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libffi-dev libssl-dev \
-            cmake libltdl-dev
+            build-essential ccache git zip unzip rsync \
+            openjdk-17-jdk python3-pip \
+            autoconf automake libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 \
+            cmake libltdl-dev libffi-dev libssl-dev
 
       - name: Install Buildozer and Cython
         run: |
           python -m pip install --upgrade pip
-          pip install "cython<3" buildozer
+          pip install "cython==0.29.36" "buildozer==1.5.0"
+
+      - name: Buildozer environment check
+        run: |
+          buildozer --version
+          buildozer android clean
 
       - name: Build debug APK
         run: |
