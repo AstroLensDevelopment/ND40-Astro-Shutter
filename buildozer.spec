@@ -1,5 +1,5 @@
 [app]
-title = ND40 Astro Shutter
+title = Astro Shutter IR
 package.name = nd40astro
 package.domain = org.nd40
 source.dir = .
@@ -8,6 +8,8 @@ version = 0.1.0
 requirements = python3,kivy==2.3.0,kivymd==1.1.1,pyjnius
 orientation = portrait
 fullscreen = 0
+icon.filename = icon.svg
+presplash.filename = icon.svg
 android.api = 33
 android.minapi = 21
 android.accept_sdk_license = True

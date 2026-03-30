@@ -125,8 +125,8 @@ KV = """
                     on_release: app.start_sequence()
                 MDRaisedButton:
                     text: "Abort"
-                    disabled: not app.can_abort
-                    md_bg_color: (1, 0.76, 0, 1) if not self.disabled else (.35, .35, .35, 1)
+                    disabled: False
+                    md_bg_color: (1, 0.76, 0, 1)
                     text_color: 1,1,1,1
                     on_release: app.abort_sequence()
             MDLabel:
@@ -236,33 +236,17 @@ class BluetoothClient:
         if not self._platform_is_android:
             return True
         try:
-            autoclass = self.autoclass
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            ActivityCompat = autoclass("androidx.core.app.ActivityCompat")
-            ContextCompat = autoclass("androidx.core.content.ContextCompat")
-            Manifest = autoclass("android.Manifest")
-            Build = autoclass("android.os.Build")
-            activity = PythonActivity.mActivity
+            # Use python-for-android's permission API to avoid brittle JVM class lookups.
+            from android.permissions import check_permission, request_permissions, Permission  # type: ignore
 
-            sdk = Build.VERSION.SDK_INT
-            needed = []
-            if sdk >= 31:
-                needed.extend([Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN])
-            else:
-                needed.extend([Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN])
-                needed.append(Manifest.permission.ACCESS_FINE_LOCATION)
-
-            missing = []
-            for perm in needed:
-                granted = ContextCompat.checkSelfPermission(activity, perm)
-                if granted != 0:
-                    missing.append(perm)
+            needed = [Permission.BLUETOOTH_CONNECT, Permission.BLUETOOTH_SCAN]
+            missing = [perm for perm in needed if not check_permission(perm)]
             if missing:
-                ActivityCompat.requestPermissions(activity, missing, 1)
+                request_permissions(missing)
                 self.on_log("Requested Bluetooth permissions; please approve on device.")
             return True
         except Exception as exc:  # pragma: no cover - Android only
-            self.on_log(f"[color=#ff3333]Permission check failed: {exc}[/color]")
+            # Keep UI clean if permission helper is unavailable on a given runtime.
             return False
 
     def get_paired_devices(self):
@@ -419,7 +403,7 @@ class ShutterApp(MDApp):
         self.device_menu: Optional[MDDropdownMenu] = None
 
     def build(self):
-        self.title = "ND40 Astro Shutter"
+        self.title = "Astro Shutter IR"
         self.theme_cls.primary_palette = "Amber"
         self.theme_cls.theme_style = "Dark"
         return Builder.load_string(KV)
@@ -433,7 +417,7 @@ class ShutterApp(MDApp):
         def _update(dt):
             self.status_text = "Status: Connected"
             self.device_text = f"Device: {name}"
-            self.can_start = True
+            self.can_start = not self._sequence_active
             self.can_disconnect = True
             self.can_connect = False
             self._append_log(f"[color=#33aa33]Connected to {name}[/color]")
@@ -443,12 +427,11 @@ class ShutterApp(MDApp):
     def _on_bt_disconnected(self, reason: str):
         def _update(dt):
             self.status_text = "Status: Disconnected"
-            self.device_text = "Device: None"
+            device_name = self.selected_device_name or "None"
+            self.device_text = f"Device: {device_name}"
             self.can_start = False
-            self.can_abort = False
             self.can_disconnect = False
-            if self._sequence_active:
-                self._stop_countdown(reason="Disconnected")
+            self.can_connect = bool(self.selected_device_address)
             self._append_log(f"[color=#ff3333]{reason}[/color]")
 
         Clock.schedule_once(_update)
@@ -510,12 +493,12 @@ class ShutterApp(MDApp):
     def disconnect(self):
         if self.bt_client.connected:
             self.bt_client.close()
-        self._stop_countdown(reason="Disconnected")
         self.status_text = "Status: Disconnected"
-        self.device_text = "Device: None"
+        device_name = self.selected_device_name or "None"
+        self.device_text = f"Device: {device_name}"
         self.can_start = False
-        self.can_abort = False
         self.can_disconnect = False
+        self.can_connect = bool(self.selected_device_address)
 
     def start_sequence(self):
         try:
@@ -552,7 +535,6 @@ class ShutterApp(MDApp):
         self._sequence_started_at = time.time()
         self._sequence_active = True
         self._sequence_aborted = False
-        self.can_abort = True
         self.can_start = False
 
         self.total_text = f"Estimated total: {format_seconds(total)}"
@@ -575,15 +557,19 @@ class ShutterApp(MDApp):
             self._append_log("[color=#33aa33]Sequence finished (local estimate).[/color]")
 
     def abort_sequence(self):
-        if not self.bt_client.connected:
-            self._append_log("[color=#ff3333]Not connected.[/color]")
-            return
-        try:
-            self.bt_client.send("abort")
-        except Exception as exc:
-            self._append_log(f"[color=#ff3333]Abort send failed: {exc}[/color]")
-        self._append_log("[color=#cc5500]Abort sent; stopping local countdown.[/color]")
-        self._stop_countdown(reason="Aborted")
+        if self.bt_client.connected:
+            try:
+                self.bt_client.send("abort")
+                self._append_log("[color=#cc5500]Abort sent; stopping local countdown.[/color]")
+            except Exception as exc:
+                self._append_log(f"[color=#ff3333]Abort send failed: {exc}[/color]")
+        else:
+            self._append_log("[color=#cc5500]Abort requested while disconnected; stopping local countdown.[/color]")
+
+        if self._sequence_active:
+            self._stop_countdown(reason="Aborted")
+        else:
+            self.progress_label = "Aborted"
 
     def _stop_countdown(self, reason: str):
         if self._countdown_event:
@@ -595,7 +581,6 @@ class ShutterApp(MDApp):
         self.remaining_text = "Time remaining: --"
         self.eta_text = "ETA: --"
         self.progress_value = 0
-        self.can_abort = False
         self.can_start = self.bt_client.connected
         self.can_connect = bool(self.selected_device_address) and not self.bt_client.connected
         self.can_disconnect = self.bt_client.connected

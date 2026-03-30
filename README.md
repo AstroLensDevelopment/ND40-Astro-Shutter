@@ -1,4 +1,4 @@
-# ND40 Astro Shutter
+# Astro Shutter IR
 
 KivyMD Android app to control an ESP32 running Classic Bluetooth SPP firmware. It sends exposure sequences in the exact format the firmware expects, can abort an active run, and shows a local estimate of time remaining.
 
@@ -10,7 +10,7 @@ KivyMD Android app to control an ESP32 running Classic Bluetooth SPP firmware. I
 - Local countdown, ETA, and per-shot progress estimate using the timing model: per-shot ≈ exposure seconds + 2.6s (0.3 start pulse + exposure + 0.3 end pulse + 2.0s pause).
 - Scrollable log of connection events, commands, and any bytes received from the ESP32.
 - Runs Bluetooth I/O on a background thread to keep the UI responsive.
-- Graceful handling of disconnects (stops local timers, updates status, allows reconnect).
+- Graceful handling of disconnects (keeps local timer running after start command, updates status, allows reconnect).
 
 ## Pairing (do this once)
 1. On your Android device, open system Bluetooth settings.
@@ -83,4 +83,4 @@ This is the fastest path if local virtualization/WSL is unavailable.
 - Make sure Bluetooth is turned on before connecting. If the paired list is empty, confirm the device is paired in Android settings.
 - The app does not append a newline to commands. If your ESP32 requires a terminator, add it in firmware; the app keeps the raw format to match the provided protocol.
 - If permissions were denied, reopen the app or enable them from system settings and retry.
-- Connection drops stop the local timer and reset UI state; simply reconnect and start again.
+- Connection drops after start do not stop the local estimate; reconnecting keeps the countdown state visible.
