@@ -26,6 +26,15 @@ jobs:
           path: .buildozer_global
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
+      - name: Generate PNG assets from SVG icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y librsvg2-bin
+          rsvg-convert -w 512 -h 512 icon.svg -o icon.png
+          ls -lh icon.svg icon.png
+
       - name: Build with Buildozer
         shell: bash
         run: |
